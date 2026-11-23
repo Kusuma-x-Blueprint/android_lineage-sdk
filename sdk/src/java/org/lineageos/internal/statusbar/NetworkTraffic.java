@@ -10,9 +10,6 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.database.ContentObserver;
 import android.graphics.Color;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffColorFilter;
-import android.graphics.drawable.Drawable;
 import android.net.ConnectivityManager;
 import android.net.LinkProperties;
 import android.net.Network;
@@ -84,12 +81,10 @@ public class NetworkTraffic extends TextView {
     private long mLastRxBytes;
     private long mLastUpdateTime;
     private boolean mAutoHide;
-    private boolean mHideArrows;
     private long mAutoHideThreshold;
     private int mUnits;
     private int mShowUnits;
     private int mIconTint = Color.WHITE;
-    private Drawable mDrawable;
 
     // Network tracking related variables
     private ConnectivityManager mConnectivityManager;
@@ -118,7 +113,6 @@ public class NetworkTraffic extends TextView {
     public void onIconTintChanged(int tint) {
         mIconTint = tint;
         setTextColor(mIconTint);
-        updateTrafficDrawableColor();
     }
 
     public NetworkTraffic(Context context) {
@@ -415,9 +409,6 @@ public class NetworkTraffic extends TextView {
                     LineageSettings.Secure.NETWORK_TRAFFIC_AUTOHIDE),
                     false, this, UserHandle.USER_ALL);
             resolver.registerContentObserver(LineageSettings.Secure.getUriFor(
-                    LineageSettings.Secure.NETWORK_TRAFFIC_HIDE_ARROWS),
-                    false, this, UserHandle.USER_ALL);
-            resolver.registerContentObserver(LineageSettings.Secure.getUriFor(
                     LineageSettings.Secure.NETWORK_TRAFFIC_UNITS),
                     false, this, UserHandle.USER_ALL);
             resolver.registerContentObserver(LineageSettings.Secure.getUriFor(
@@ -446,8 +437,6 @@ public class NetworkTraffic extends TextView {
                 LineageSettings.Secure.NETWORK_TRAFFIC_MODE, 0);
         mAutoHide = LineageSettings.Secure.getInt(resolver,
                 LineageSettings.Secure.NETWORK_TRAFFIC_AUTOHIDE, 0) == 1;
-        mHideArrows = LineageSettings.Secure.getInt(resolver,
-                LineageSettings.Secure.NETWORK_TRAFFIC_HIDE_ARROWS, 0) == 1;
         mUnits = LineageSettings.Secure.getInt(resolver,
                 LineageSettings.Secure.NETWORK_TRAFFIC_UNITS, UNITS_KILOBYTES);
         mShowUnits = LineageSettings.Secure.getInt(resolver,
@@ -474,40 +463,11 @@ public class NetworkTraffic extends TextView {
                 break;
         }
 
-        if (mMode != MODE_DISABLED) {
-            updateTrafficDrawable();
-        }
         updateViewState();
     }
 
     private void updateViewState() {
         mTrafficHandler.sendEmptyMessage(MESSAGE_TYPE_UPDATE_VIEW);
-    }
-
-    private void updateTrafficDrawable() {
-        final int drawableResId;
-        if (mHideArrows) {
-            drawableResId = 0;
-        } else if (mMode == MODE_UPSTREAM_AND_DOWNSTREAM) {
-            drawableResId = R.drawable.stat_sys_network_traffic_updown;
-        } else if (mMode == MODE_UPSTREAM_ONLY) {
-            drawableResId = R.drawable.stat_sys_network_traffic_up;
-        } else if (mMode == MODE_DOWNSTREAM_ONLY) {
-            drawableResId = R.drawable.stat_sys_network_traffic_down;
-        } else {
-            drawableResId = 0;
-        }
-        mDrawable = drawableResId != 0 ? getResources().getDrawable(drawableResId) : null;
-        setCompoundDrawablePadding(0);
-        setCompoundDrawablesWithIntrinsicBounds(null, null, mDrawable, null);
-        updateTrafficDrawableColor();
-    }
-
-    private void updateTrafficDrawableColor() {
-        if (mDrawable != null) {
-            mDrawable.setColorFilter(
-                    new PorterDuffColorFilter(mIconTint, PorterDuff.Mode.MULTIPLY));
-        }
     }
 
     private static class LinkPropertiesHolder {
