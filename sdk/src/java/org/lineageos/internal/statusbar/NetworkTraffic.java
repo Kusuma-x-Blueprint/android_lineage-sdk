@@ -52,21 +52,8 @@ public class NetworkTraffic extends TextView {
 
     private static final int REFRESH_INTERVAL = 2000;
 
-    private static final int UNITS_KILOBITS = 0;
-    private static final int UNITS_MEGABITS = 1;
-    private static final int UNITS_KILOBYTES = 2;
-    private static final int UNITS_MEGABYTES = 3;
-    private static final int UNITS_AUTOBYTES = 4;
-
-    private static final int SHOW_UNITS_OFF = 0;
-    private static final int SHOW_UNITS_ON = 1;
-    private static final int SHOW_UNITS_COMPACT = 2;
-
-    // Thresholds themselves are always defined in kbps
-    private static final long AUTOHIDE_THRESHOLD_KILOBITS  = 10;
-    private static final long AUTOHIDE_THRESHOLD_MEGABITS  = 100;
-    private static final long AUTOHIDE_THRESHOLD_KILOBYTES = 8;
-    private static final long AUTOHIDE_THRESHOLD_MEGABYTES = 80;
+    // Threshold is always defined in kbps (8 kbps = 1 kB/s)
+    private static final long AUTOHIDE_THRESHOLD = 8;
 
     private final int mTextSizeSingle;
     private final int mTextSizeMulti;
@@ -81,9 +68,6 @@ public class NetworkTraffic extends TextView {
     private long mLastRxBytes;
     private long mLastUpdateTime;
     private boolean mAutoHide;
-    private long mAutoHideThreshold;
-    private int mUnits;
-    private int mShowUnits;
     private int mIconTint = Color.WHITE;
 
     // Network tracking related variables
@@ -208,8 +192,8 @@ public class NetworkTraffic extends TextView {
                 final boolean showDownstream =
                         mMode == MODE_DOWNSTREAM_ONLY || mMode == MODE_UPSTREAM_AND_DOWNSTREAM;
                 final boolean shouldHide = mAutoHide
-                        && (!showUpstream || mTxKbps < mAutoHideThreshold)
-                        && (!showDownstream || mRxKbps < mAutoHideThreshold);
+                        && (!showUpstream || mTxKbps < AUTOHIDE_THRESHOLD)
+                        && (!showDownstream || mRxKbps < AUTOHIDE_THRESHOLD);
 
                 final boolean isVisible = enabled && !shouldHide;
                 if (mNetworkTrafficIsVisible != isVisible) {
@@ -262,52 +246,22 @@ public class NetworkTraffic extends TextView {
             private String formatOutput(long kbps) {
                 final String value;
                 final String unit;
-                int unitid = 0;
-                switch (mUnits) {
-                    case UNITS_KILOBITS:
-                        value = String.format("%d", kbps);
-                        unitid = R.string.kilobitspersecond_short;
-                        break;
-                    case UNITS_MEGABITS:
-                        value = String.format("%.1f", (float) kbps / 1000);
-                        unitid = R.string.megabitspersecond_short;
-                        break;
-                    case UNITS_KILOBYTES:
-                    case UNITS_AUTOBYTES:
-                        if (kbps < 8000 || mUnits == UNITS_KILOBYTES) {
-                            value = String.format("%.0f", (float) kbps / 8 );
-                            unitid = mShowUnits == SHOW_UNITS_COMPACT
-                                ? R.string.kilobytespersecond_compact
-                                : R.string.kilobytespersecond_short;
-                            break;
-                        }
-                    case UNITS_MEGABYTES:
-                        {
-                            final String format;
-                            if (kbps < 80000) {
-                                format = "%.2f";
-                            } else if (kbps < 800000) {
-                                format = "%.1f";
-                            } else {
-                                format = "%.0f";
-                            }
-                            value = String.format(format, (float) kbps / 8000 );
-                        }
-                        unitid = mShowUnits == SHOW_UNITS_COMPACT
-                            ? R.string.megabytespersecond_compact
-                            : R.string.megabytespersecond_short;
-                        break;
-                    default:
-                        value = "unknown";
-                        break;
-                }
-
-                if (mShowUnits > SHOW_UNITS_OFF && unitid != 0) {
-                    unit = mContext.getString(unitid);
-                    return value + " " + unit;
+                if (kbps < 8000) {
+                    value = String.format("%.0f", (float) kbps / 8);
+                    unit = mContext.getString(R.string.kilobytespersecond_short);
                 } else {
-                    return value;
+                    final String format;
+                    if (kbps < 80000) {
+                        format = "%.2f";
+                    } else if (kbps < 800000) {
+                        format = "%.1f";
+                    } else {
+                        format = "%.0f";
+                    }
+                    value = String.format(format, (float) kbps / 8000);
+                    unit = mContext.getString(R.string.megabytespersecond_short);
                 }
+                return value + " " + unit;
             }
         };
         mObserver = new SettingsObserver(mTrafficHandler);
@@ -408,12 +362,6 @@ public class NetworkTraffic extends TextView {
             resolver.registerContentObserver(LineageSettings.Secure.getUriFor(
                     LineageSettings.Secure.NETWORK_TRAFFIC_AUTOHIDE),
                     false, this, UserHandle.USER_ALL);
-            resolver.registerContentObserver(LineageSettings.Secure.getUriFor(
-                    LineageSettings.Secure.NETWORK_TRAFFIC_UNITS),
-                    false, this, UserHandle.USER_ALL);
-            resolver.registerContentObserver(LineageSettings.Secure.getUriFor(
-                    LineageSettings.Secure.NETWORK_TRAFFIC_SHOW_UNITS),
-                    false, this, UserHandle.USER_ALL);
         }
 
         void unobserve() {
@@ -437,32 +385,8 @@ public class NetworkTraffic extends TextView {
                 LineageSettings.Secure.NETWORK_TRAFFIC_MODE, 0);
         mAutoHide = LineageSettings.Secure.getInt(resolver,
                 LineageSettings.Secure.NETWORK_TRAFFIC_AUTOHIDE, 0) == 1;
-        mUnits = LineageSettings.Secure.getInt(resolver,
-                LineageSettings.Secure.NETWORK_TRAFFIC_UNITS, UNITS_KILOBYTES);
-        mShowUnits = LineageSettings.Secure.getInt(resolver,
-                LineageSettings.Secure.NETWORK_TRAFFIC_SHOW_UNITS, SHOW_UNITS_ON);
 
         manageNetworkCallbacks();
-
-        switch (mUnits) {
-            case UNITS_KILOBITS:
-                mAutoHideThreshold = AUTOHIDE_THRESHOLD_KILOBITS;
-                break;
-            case UNITS_MEGABITS:
-                mAutoHideThreshold = AUTOHIDE_THRESHOLD_MEGABITS;
-                break;
-            case UNITS_KILOBYTES:
-            case UNITS_AUTOBYTES:
-                mAutoHideThreshold = AUTOHIDE_THRESHOLD_KILOBYTES;
-                break;
-            case UNITS_MEGABYTES:
-                mAutoHideThreshold = AUTOHIDE_THRESHOLD_MEGABYTES;
-                break;
-            default:
-                mAutoHideThreshold = 0;
-                break;
-        }
-
         updateViewState();
     }
 
