@@ -41,8 +41,6 @@ public class NetworkTraffic extends TextView {
     private static final String CLAT_PREFIX = "v4-";
 
     private static final int MODE_DISABLED = 0;
-    private static final int MODE_UPSTREAM_ONLY = 1;
-    private static final int MODE_DOWNSTREAM_ONLY = 2;
     private static final int MODE_UPSTREAM_AND_DOWNSTREAM = 3;
 
     private static final int MESSAGE_TYPE_PERIODIC_REFRESH = 0;
@@ -56,7 +54,6 @@ public class NetworkTraffic extends TextView {
     private static final long AUTOHIDE_THRESHOLD = 8;
 
     private final int mTextSizeSingle;
-    private final int mTextSizeMulti;
     private final Handler mTrafficHandler;
     private final SettingsObserver mObserver;
 
@@ -112,7 +109,6 @@ public class NetworkTraffic extends TextView {
 
         final Resources resources = getResources();
         mTextSizeSingle = resources.getDimensionPixelSize(R.dimen.net_traffic_single_text_size);
-        mTextSizeMulti = resources.getDimensionPixelSize(R.dimen.net_traffic_multi_text_size);
 
         mNetworkTrafficIsVisible = false;
 
@@ -187,13 +183,8 @@ public class NetworkTraffic extends TextView {
 
             private void displayStatsAndReschedule() {
                 final boolean enabled = mMode != MODE_DISABLED && isConnectionAvailable();
-                final boolean showUpstream =
-                        mMode == MODE_UPSTREAM_ONLY || mMode == MODE_UPSTREAM_AND_DOWNSTREAM;
-                final boolean showDownstream =
-                        mMode == MODE_DOWNSTREAM_ONLY || mMode == MODE_UPSTREAM_AND_DOWNSTREAM;
-                final boolean shouldHide = mAutoHide
-                        && (!showUpstream || mTxKbps < AUTOHIDE_THRESHOLD)
-                        && (!showDownstream || mRxKbps < AUTOHIDE_THRESHOLD);
+                final long totalKbps = mTxKbps + mRxKbps;
+                final boolean shouldHide = mAutoHide && totalKbps < AUTOHIDE_THRESHOLD;
 
                 final boolean isVisible = enabled && !shouldHide;
                 if (mNetworkTrafficIsVisible != isVisible) {
@@ -207,30 +198,12 @@ public class NetworkTraffic extends TextView {
                     setText("");
                     setVisibility(GONE);
                 } else {
-                    // Get information for uplink ready so the line return can be added
-                    StringBuilder output = new StringBuilder();
-                    if (showUpstream) {
-                        output.append(formatOutput(mTxKbps));
-                    }
-
-                    // Ensure text size is where it needs to be
-                    int textSize;
-                    if (showUpstream && showDownstream) {
-                        output.append("\n");
-                        textSize = mTextSizeMulti;
-                    } else {
-                        textSize = mTextSizeSingle;
-                    }
-
-                    // Add information for downlink if it's called for
-                    if (showDownstream) {
-                        output.append(formatOutput(mRxKbps));
-                    }
+                    final String output = formatOutput(totalKbps);
 
                     // Update view if there's anything new to show
-                    if (!output.toString().contentEquals(getText())) {
-                        setTextSize(TypedValue.COMPLEX_UNIT_PX, (float) textSize);
-                        setText(output.toString());
+                    if (!output.contentEquals(getText())) {
+                        setTextSize(TypedValue.COMPLEX_UNIT_PX, (float) mTextSizeSingle);
+                        setText(output);
                     }
                     setVisibility(VISIBLE);
                 }
