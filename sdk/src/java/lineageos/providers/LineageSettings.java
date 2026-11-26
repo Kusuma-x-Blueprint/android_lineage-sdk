@@ -1242,13 +1242,13 @@ public final class LineageSettings {
                 sHardwareKeyActionvalidator;
 
         /**
-         * Action to perform when swiping up from a bottom corner. (Default is 3)
+         * Action to perform when the screen corner is long-swiped. (Default is 3)
          * (See KEY_HOME_LONG_PRESS_ACTION for valid values)
          */
-        public static final String KEY_CORNER_SWIPE_ACTION = "key_corner_swipe_action";
+        public static final String KEY_CORNER_LONG_SWIPE_ACTION = "key_corner_long_swipe_action";
 
         /** @hide */
-        public static final Validator KEY_CORNER_SWIPE_ACTION_VALIDATOR =
+        public static final Validator KEY_CORNER_LONG_SWIPE_ACTION_VALIDATOR =
                 sHardwareKeyActionvalidator;
 
         /**
@@ -2174,7 +2174,7 @@ public final class LineageSettings {
             VALIDATORS.put(KEY_APP_SWITCH_LONG_PRESS_ACTION,
                     KEY_APP_SWITCH_LONG_PRESS_ACTION_VALIDATOR);
             VALIDATORS.put(KEY_EDGE_LONG_SWIPE_ACTION, KEY_EDGE_LONG_SWIPE_ACTION_VALIDATOR);
-            VALIDATORS.put(KEY_CORNER_SWIPE_ACTION, KEY_CORNER_SWIPE_ACTION_VALIDATOR);
+            VALIDATORS.put(KEY_CORNER_LONG_SWIPE_ACTION, KEY_CORNER_LONG_SWIPE_ACTION_VALIDATOR);
             VALIDATORS.put(HOME_WAKE_SCREEN, HOME_WAKE_SCREEN_VALIDATOR);
             VALIDATORS.put(ASSIST_WAKE_SCREEN, ASSIST_WAKE_SCREEN_VALIDATOR);
             VALIDATORS.put(APP_SWITCH_WAKE_SCREEN, APP_SWITCH_WAKE_SCREEN_VALIDATOR);
