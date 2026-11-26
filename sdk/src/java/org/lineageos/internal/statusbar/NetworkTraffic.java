@@ -5,8 +5,11 @@
 
 package org.lineageos.internal.statusbar;
 
+import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.database.ContentObserver;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
@@ -17,10 +20,12 @@ import android.net.NetworkRequest;
 import android.net.TrafficStats;
 import android.os.Handler;
 import android.os.Message;
+import android.os.PowerManager;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.view.Display;
 import android.widget.TextView;
 
 import lineageos.providers.LineageSettings;
@@ -63,6 +68,11 @@ public class NetworkTraffic extends TextView {
     private long mLastUpdateTime;
     private boolean mAutoHide;
     private int mIconTint = Color.WHITE;
+    private boolean mAttached;
+    private boolean mBlocked;
+    private boolean mScreenOn;
+    private boolean mScreenReceiverRegistered;
+    private boolean mObserverRegistered;
 
     // Network tracking related variables
     private ConnectivityManager mConnectivityManager;
@@ -86,6 +96,28 @@ public class NetworkTraffic extends TextView {
 
     public boolean isTrafficVisible() {
         return mNetworkTrafficIsVisible;
+    }
+
+    public void setBlocked(boolean blocked) {
+        if (mBlocked == blocked) {
+            return;
+        }
+        mBlocked = blocked;
+        if (mBlocked) {
+            mNetworkTrafficIsVisible = false;
+            mTrafficHandler.removeCallbacksAndMessages(null);
+            unregisterNetworkCallbacks();
+            unregisterScreenReceiver();
+            mObserver.unobserve();
+            setText("");
+            if (mVisibilityListener == null) {
+                setVisibility(GONE);
+            }
+        } else if (mAttached) {
+            mScreenOn = isDisplayOn();
+            mObserver.observe();
+            updateSettings();
+        }
     }
 
     public void onIconTintChanged(int tint) {
@@ -112,11 +144,17 @@ public class NetworkTraffic extends TextView {
             public void handleMessage(Message msg) {
                 switch (msg.what) {
                     case MESSAGE_TYPE_PERIODIC_REFRESH:
+                        if (!mScreenOn || mBlocked) {
+                            return;
+                        }
                         recalculateStats();
                         displayStatsAndReschedule();
                         break;
 
                     case MESSAGE_TYPE_UPDATE_VIEW:
+                        if (!mScreenOn || mBlocked) {
+                            return;
+                        }
                         displayStatsAndReschedule();
                         break;
 
@@ -190,7 +228,9 @@ public class NetworkTraffic extends TextView {
 
                 if (!isVisible) {
                     setText("");
-                    setVisibility(GONE);
+                    if (mVisibilityListener == null) {
+                        setVisibility(GONE);
+                    }
                 } else {
                     final String output = formatOutput(totalKbps);
 
@@ -198,12 +238,15 @@ public class NetworkTraffic extends TextView {
                     if (!output.contentEquals(getText())) {
                         setText(output);
                     }
-                    setVisibility(VISIBLE);
+                    if (mVisibilityListener == null) {
+                        setVisibility(VISIBLE);
+                    }
                 }
 
                 // Schedule periodic refresh
                 mTrafficHandler.removeMessages(MESSAGE_TYPE_PERIODIC_REFRESH);
-                if (enabled && mNetworkTrafficIsVisible) {
+                if (enabled && mScreenOn && !mBlocked
+                        && (mNetworkTrafficIsVisible || mAutoHide)) {
                     mTrafficHandler.sendEmptyMessageDelayed(MESSAGE_TYPE_PERIODIC_REFRESH,
                             REFRESH_INTERVAL);
                 }
@@ -231,7 +274,31 @@ public class NetworkTraffic extends TextView {
             }
         };
         mObserver = new SettingsObserver(mTrafficHandler);
-        updateSettings();
+    }
+
+    private void registerScreenReceiver() {
+        if (!mScreenReceiverRegistered && mAttached && !mBlocked && mMode != MODE_DISABLED) {
+            IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_OFF);
+            filter.addAction(Intent.ACTION_SCREEN_ON);
+            mContext.registerReceiver(mScreenReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            mScreenReceiverRegistered = true;
+        }
+    }
+
+    private void unregisterScreenReceiver() {
+        if (mScreenReceiverRegistered) {
+            mContext.unregisterReceiver(mScreenReceiver);
+            mScreenReceiverRegistered = false;
+        }
+    }
+
+    private boolean isDisplayOn() {
+        final Display display = getDisplay();
+        if (display != null) {
+            return display.getState() == Display.STATE_ON;
+        }
+        final PowerManager pm = mContext.getSystemService(PowerManager.class);
+        return pm != null && pm.isInteractive();
     }
 
     private void unregisterNetworkCallbacks() {
@@ -246,11 +313,14 @@ public class NetworkTraffic extends TextView {
     }
 
     private void manageNetworkCallbacks() {
-        if (mMode == MODE_DISABLED) {
+        if (mMode == MODE_DISABLED || mBlocked) {
             // Unregister callbacks if disabling
             unregisterNetworkCallbacks();
+            unregisterScreenReceiver();
             return;
         }
+
+        registerScreenReceiver();
 
         // Register callbacks if enabling
         if (mNetworkCallback == null) {
@@ -302,6 +372,11 @@ public class NetworkTraffic extends TextView {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
 
+        mAttached = true;
+        if (mBlocked) {
+            return;
+        }
+        mScreenOn = isDisplayOn();
         mObserver.observe();
         updateSettings();
     }
@@ -310,10 +385,32 @@ public class NetworkTraffic extends TextView {
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
 
+        mAttached = false;
         mObserver.unobserve();
         mTrafficHandler.removeCallbacksAndMessages(null);
         unregisterNetworkCallbacks();
+        unregisterScreenReceiver();
     }
+
+    private final BroadcastReceiver mScreenReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (Intent.ACTION_SCREEN_OFF.equals(action)) {
+                mScreenOn = false;
+                mTrafficHandler.removeMessages(MESSAGE_TYPE_PERIODIC_REFRESH);
+                mTrafficHandler.removeMessages(MESSAGE_TYPE_UPDATE_VIEW);
+            } else if (Intent.ACTION_SCREEN_ON.equals(action)) {
+                mScreenOn = true;
+                if (mMode != MODE_DISABLED && !mBlocked) {
+                    mNetworksChanged = true;
+                    mLastUpdateTime = 0;
+                    mTrafficHandler.removeMessages(MESSAGE_TYPE_PERIODIC_REFRESH);
+                    mTrafficHandler.sendEmptyMessage(MESSAGE_TYPE_PERIODIC_REFRESH);
+                }
+            }
+        }
+    };
 
     class SettingsObserver extends ContentObserver {
         SettingsObserver(Handler handler) {
@@ -321,6 +418,9 @@ public class NetworkTraffic extends TextView {
         }
 
         void observe() {
+            if (mObserverRegistered) {
+                return;
+            }
             ContentResolver resolver = mContext.getContentResolver();
             resolver.registerContentObserver(LineageSettings.Secure.getUriFor(
                     LineageSettings.Secure.NETWORK_TRAFFIC_MODE),
@@ -328,10 +428,14 @@ public class NetworkTraffic extends TextView {
             resolver.registerContentObserver(LineageSettings.Secure.getUriFor(
                     LineageSettings.Secure.NETWORK_TRAFFIC_AUTOHIDE),
                     false, this, UserHandle.USER_ALL);
+            mObserverRegistered = true;
         }
 
         void unobserve() {
-            mContext.getContentResolver().unregisterContentObserver(this);
+            if (mObserverRegistered) {
+                mContext.getContentResolver().unregisterContentObserver(this);
+                mObserverRegistered = false;
+            }
         }
 
         @Override
@@ -345,6 +449,9 @@ public class NetworkTraffic extends TextView {
     }
 
     private void updateSettings() {
+        if (mBlocked) {
+            return;
+        }
         ContentResolver resolver = mContext.getContentResolver();
 
         mMode = LineageSettings.Secure.getInt(resolver,
@@ -357,6 +464,9 @@ public class NetworkTraffic extends TextView {
     }
 
     private void updateViewState() {
+        if (mBlocked || !mScreenOn) {
+            return;
+        }
         mTrafficHandler.sendEmptyMessage(MESSAGE_TYPE_UPDATE_VIEW);
     }
 
