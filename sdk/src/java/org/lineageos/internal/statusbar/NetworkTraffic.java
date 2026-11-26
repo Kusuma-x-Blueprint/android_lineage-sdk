@@ -7,7 +7,6 @@ package org.lineageos.internal.statusbar;
 
 import android.content.ContentResolver;
 import android.content.Context;
-import android.content.res.Resources;
 import android.database.ContentObserver;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
@@ -22,7 +21,6 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.util.TypedValue;
 import android.widget.TextView;
 
 import lineageos.providers.LineageSettings;
@@ -53,7 +51,6 @@ public class NetworkTraffic extends TextView {
     // Threshold is always defined in kbps (8 kbps = 1 kB/s)
     private static final long AUTOHIDE_THRESHOLD = 8;
 
-    private final int mTextSizeSingle;
     private final Handler mTrafficHandler;
     private final SettingsObserver mObserver;
 
@@ -106,9 +103,6 @@ public class NetworkTraffic extends TextView {
 
     public NetworkTraffic(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
-
-        final Resources resources = getResources();
-        mTextSizeSingle = resources.getDimensionPixelSize(R.dimen.net_traffic_single_text_size);
 
         mNetworkTrafficIsVisible = false;
 
@@ -202,7 +196,6 @@ public class NetworkTraffic extends TextView {
 
                     // Update view if there's anything new to show
                     if (!output.contentEquals(getText())) {
-                        setTextSize(TypedValue.COMPLEX_UNIT_PX, (float) mTextSizeSingle);
                         setText(output);
                     }
                     setVisibility(VISIBLE);
