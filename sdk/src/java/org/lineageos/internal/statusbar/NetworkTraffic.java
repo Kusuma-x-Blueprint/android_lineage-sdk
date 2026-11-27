@@ -10,6 +10,7 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.res.Resources;
 import android.database.ContentObserver;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
@@ -25,6 +26,7 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.Display;
 import android.widget.TextView;
 
@@ -56,6 +58,7 @@ public class NetworkTraffic extends TextView {
     // Threshold is always defined in kbps (8 kbps = 1 kB/s)
     private static final long AUTOHIDE_THRESHOLD = 8;
 
+    private final int mTextSizeMulti;
     private final Handler mTrafficHandler;
     private final SettingsObserver mObserver;
 
@@ -135,6 +138,9 @@ public class NetworkTraffic extends TextView {
 
     public NetworkTraffic(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
+
+        final Resources resources = getResources();
+        mTextSizeMulti = resources.getDimensionPixelSize(R.dimen.net_traffic_multi_text_size);
 
         mNetworkTrafficIsVisible = false;
 
@@ -236,6 +242,7 @@ public class NetworkTraffic extends TextView {
 
                     // Update view if there's anything new to show
                     if (!output.contentEquals(getText())) {
+                        setTextSize(TypedValue.COMPLEX_UNIT_PX, (float) mTextSizeMulti);
                         setText(output);
                     }
                     if (mVisibilityListener == null) {
@@ -270,7 +277,7 @@ public class NetworkTraffic extends TextView {
                     value = String.format(format, (float) kbps / 8000);
                     unit = mContext.getString(R.string.megabytespersecond_short);
                 }
-                return value + " " + unit;
+                return value + "\n" + unit;
             }
         };
         mObserver = new SettingsObserver(mTrafficHandler);
