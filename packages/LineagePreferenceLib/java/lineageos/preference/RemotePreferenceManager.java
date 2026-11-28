@@ -114,11 +114,36 @@ public class RemotePreferenceManager {
         }
     }
 
+    public void refresh(String key) {
+        synchronized (mCallbacks) {
+            if (mCallbacks.containsKey(key)) {
+                requestUpdate(key);
+            }
+        }
+    }
+
+    public void requestSetChecked(String key, boolean checked) {
+        synchronized (mCallbacks) {
+            if (mCallbacks.containsKey(key)) {
+                sendUpdateBroadcast(key, checked);
+            }
+        }
+    }
+
     private void requestUpdate(String key) {
+        sendUpdateBroadcast(key, null);
+    }
+
+    private void sendUpdateBroadcast(String key, Boolean setChecked) {
         synchronized (mCache) {
-            Intent i = mCache.get(key);
-            if (i == null) {
+            Intent cached = mCache.get(key);
+            if (cached == null) {
                 return;
+            }
+            Intent i = cached;
+            if (setChecked != null) {
+                i = new Intent(cached);
+                i.putExtra(RemotePreference.EXTRA_SET_CHECKED, setChecked);
             }
             mContext.sendOrderedBroadcastAsUser(i, UserHandle.CURRENT,
                     Manifest.permission.MANAGE_REMOTE_PREFERENCES,

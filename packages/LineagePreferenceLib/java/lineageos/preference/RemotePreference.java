@@ -68,6 +68,10 @@ public class RemotePreference extends SelfRemovingPreference
     public static final String EXTRA_ENABLED = ":lineage:pref_enabled";
     public static final String EXTRA_KEY = ":lineage:pref_key";
     public static final String EXTRA_SUMMARY = ":lineage:pref_summary";
+    public static final String EXTRA_CHECKED = ":lineage:pref_checked";
+    public static final String EXTRA_SWITCH_ENABLED = ":lineage:pref_switch_enabled";
+    public static final String EXTRA_SET_CHECKED = ":lineage:pref_set_checked";
+    public static final String EXTRA_WATCH_URI = ":lineage:pref_watch_uri";
 
     protected final Context mContext;
 
@@ -123,17 +127,30 @@ public class RemotePreference extends SelfRemovingPreference
 
     @Override
     public Intent getReceiverIntent() {
-        final Intent i = getIntent();
+        return resolveReceiverIntent(mContext, getIntent(), null,
+                metaData -> getRemoteKey(metaData));
+    }
+
+    public static Intent resolveReceiverIntent(Context context, Intent targetIntent,
+            String key) {
+        return resolveReceiverIntent(context, targetIntent, key, null);
+    }
+
+    interface RemoteKeyResolver {
+        String getRemoteKey(Bundle metaData);
+    }
+
+    private static Intent resolveReceiverIntent(Context context, Intent i,
+            String fixedRemoteKey, RemoteKeyResolver keyResolver) {
         if (i == null) {
             Log.w(TAG, "No target intent specified in preference!");
             return null;
         }
 
-        PackageManager pm = mContext.getPackageManager();
+        PackageManager pm = context.getPackageManager();
         List<ResolveInfo> results = pm.queryIntentActivitiesAsUser(i,
                 PackageManager.MATCH_SYSTEM_ONLY | PackageManager.GET_META_DATA,
                 UserHandle.myUserId());
-
 
         if (results.size() == 0) {
             Log.w(TAG, "No activity found for: " + Objects.toString(i));
@@ -150,7 +167,8 @@ public class RemotePreference extends SelfRemovingPreference
 
             String receiverClass = meta.getString(META_REMOTE_RECEIVER);
             String receiverPackage = info.packageName;
-            String remoteKey = getRemoteKey(meta);
+            String remoteKey = keyResolver != null
+                    ? keyResolver.getRemoteKey(meta) : fixedRemoteKey;
 
             if (DEBUG) Log.d(TAG, "getReceiverIntent class=" + receiverClass +
                                   " package=" + receiverPackage + " key=" + remoteKey);

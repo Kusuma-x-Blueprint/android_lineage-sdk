@@ -78,6 +78,18 @@ public class RemotePreferenceUpdater extends BroadcastReceiver {
 
 
     /**
+     * Handle a remote switch state change request for the given key.
+     *
+     * @param context
+     * @param key
+     * @param checked
+     * @return true if handled
+     */
+    protected boolean onSetChecked(Context context, String key, boolean checked) {
+        return false;
+    }
+
+    /**
      * @hide
      */
     @Override
@@ -90,6 +102,10 @@ public class RemotePreferenceUpdater extends BroadcastReceiver {
                        " extras=" + Objects.toString(intent.getExtras()));
 
             if (key != null) {
+                if (intent.hasExtra(RemotePreference.EXTRA_SET_CHECKED)) {
+                    onSetChecked(context, key,
+                            intent.getBooleanExtra(RemotePreference.EXTRA_SET_CHECKED, false));
+                }
                 if (fillResultExtras(context, key, getResultExtras(true))) {
                     setResultCode(Activity.RESULT_OK);
 

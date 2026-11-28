@@ -23,4 +23,8 @@
         <attr name="xmlRes" format="reference" />
     </declare-styleable>
 
+    <declare-styleable name="lineage_LineagePartsPrimarySwitchPreference">
+        <attr name="settingKey" format="string" />
+    </declare-styleable>
+
 </resources>

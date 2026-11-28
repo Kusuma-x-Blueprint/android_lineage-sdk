@@ -15,5 +15,6 @@
   <public type="attr" name="requiresAction" />
   <public type="attr" name="replacesKey" />
   <public type="attr" name="minSummaryLines" />
+  <public type="attr" name="settingKey" />
 
 </resources>
